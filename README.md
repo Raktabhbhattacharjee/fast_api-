@@ -34,4 +34,39 @@ I realized I don't need to write manual "if" checks to see if a value is valid a
 - [x] Used Enum classes for predefined dropdown values.
 - [x] Verified auto-validation in `/docs`.
 
-**Next Up: Day 2 - Query Parameters (Filtering data), so yea.**
+# 🚀 30 Days of FastAPI
+
+### Day 2: The Logic of Parameters (Query & Path)
+**Date:** Jan 7, 2026  
+**Status:** Complete ✅
+
+Today was about learning how to communicate with the API via the URL. I learned that FastAPI identifies data based on where I define it—either in the "Address" (Path) or the "Function" (Query), so yea.
+
+### 🧠 My Learning Log
+* **Path Parameters (`/items/{id}`):**
+    * These live inside the decorator: `@app.get("/items/{item_id}")`.
+    * They are mandatory. If the ID isn't in the URL, the route won't even trigger.
+    * Use these for "Primary Keys" to identify a specific resource, so yea.
+
+* **Query Parameters (`?limit=10`):**
+    * These are **NOT** in the decorator; they only live in the function signature: `async def read(limit: int)`.
+    * They are used for filtering, sorting, or searching through data.
+    * FastAPI knows it's a Query Param automatically because it's missing from the decorator path.
+
+
+
+### 🛠️ The "Safety" Logic (Defaults & Optionals)
+I don't have to worry about the API crashing if a user misses a filter. I can bake the logic directly into the parameters:
+* **Optional Values:** Using `str | None = None` makes a parameter optional. If the user doesn't send it, the code just skips it.
+* **Smart Defaults:** Setting `limit: int = 10` ensures that even if the user is lazy, my logic still has a number to work with.
+* **Type Guard:** If I expect an `int` and get a `string`, FastAPI blocks the request before it even hits my main logic, so yea.
+
+
+
+### 🛡️ Mixing Parameters
+The real "Main Logic" happens when you combine them. I can identify a user via **Path** and then filter their data via **Query**:
+```python
+@app.get("/users/{user_id}/items")
+async def get_items(user_id: int, limit: int = 10, category: str | None = None):
+    # Identifies WHO (Path) and WHAT/HOW MANY (Query)
+    return {"user": user_id, "limit": limit, "cat": category}
