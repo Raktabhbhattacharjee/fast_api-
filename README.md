@@ -1,72 +1,61 @@
-# 🚀 30 Days of FastAPI
+# 🚀 30 Days of FastAPI: Engineering Log
 
-### Day 1: The "No-Boilerplate" & Validation Logic
-**Date:** Jan 6, 2026  
-**Status:** Complete ✅
-
-Today was about setting up the environment and seeing how FastAPI handles the "guard" logic automatically so I don't have to write it manually, so yea.
-
-### 🧠 My Learning Log
-* **The App Object:** `app = FastAPI()` is the main instance. Everything connects here.
-* **Decorators (@):** These are like inbuilt Higher Order Functions. I just tell it the path and the method (GET, POST, etc.), and it sits on top of my function logic, so yea.
-* **Coroutines:** `async def` functions return a Coroutine object. It handles the asynchronous execution in the background.
-* **Automatic JSON:** I can return a dict, list, or singular values like int or str. FastAPI converts it to JSON automatically, so yea.
-
-### 🛠️ The "No Postman" Workflow
-The interactive docs are the best part because I don't have to type anything manually to test.
-* I just go to `/docs` and the UI is already built based on my code.
-* It catches bugs (like wrong data types) before the code even runs my main function.
-* It’s a full testing suite that documents itself, so yea.
-
-### 🛡️ High-Level Validation vs. Manual Logic
-I realized I don't need to write manual "if" checks to see if a value is valid anymore.
-
-* **The Enum Shift:** I just use an **Enum Class**. I don't use shortcuts like `.value` manually just to check if a string exists in a list.
-* **The Result:** If I input something wrong (like my name `raktabh`), FastAPI blocks it and sends a `detail` error immediately. It tells the user exactly what was expected (like `'gemini' or 'developer'`).
-* **The Win:** The framework handles the "pre-flight" check so I only have to focus on the logic when the data is 100% correct, so yea.
+This repository documents my transition from **Java/C++** to **FastAPI**. My goal is to master modern API development by replacing manual "if-else" boilerplate with declarative framework guards.
 
 ---
 
-### ✅ Day 1 Checklist
-- [x] Initialized Git (Working tree clean).
-- [x] Set up `.venv` (Environment isolation).
-- [x] Created `app/main.py` with Path Parameters.
-- [x] Used Enum classes for predefined dropdown values.
-- [x] Verified auto-validation in `/docs`.
+## 📅 Day 1: The "No-Boilerplate" Foundation
+**Date:** Jan 6, 2026 | **Status:** Complete ✅
 
-# 🚀 30 Days of FastAPI
+Today was about setting up the environment and understanding how FastAPI handles "pre-flight" logic automatically.
 
-### Day 2: The Logic of Parameters (Query & Path)
-**Date:** Jan 7, 2026  
-**Status:** Complete ✅
+* **App Lifecycle:** `app = FastAPI()` is the central registry.
+* **Decorators:** Used as Higher-Order Functions to map network routes to Python logic.
+* **The Enum Shift:** Implemented `Enum` classes for strict validation. If an input is invalid, FastAPI blocks it with a `422 Unprocessable Entity` error before the function even runs.
 
-Today was about learning how to communicate with the API via the URL. I learned that FastAPI identifies data based on where I define it—either in the "Address" (Path) or the "Function" (Query), so yea.
+---
 
-### 🧠 My Learning Log
-* **Path Parameters (`/items/{id}`):**
-    * These live inside the decorator: `@app.get("/items/{item_id}")`.
-    * They are mandatory. If the ID isn't in the URL, the route won't even trigger.
-    * Use these for "Primary Keys" to identify a specific resource, so yea.
+## 📅 Day 2: Manual Logic & Model Dumping
+**Date:** Jan 7, 2026 | **Status:** Complete ✅
 
-* **Query Parameters (`?limit=10`):**
-    * These are **NOT** in the decorator; they only live in the function signature: `async def read(limit: int)`.
-    * They are used for filtering, sorting, or searching through data.
-    * FastAPI knows it's a Query Param automatically because it's missing from the decorator path.
+Explored the communication layer between the URL and the server.
 
+* **Parameter Scope:** Identified the difference between **Path** (Structural/Mandatory) and **Query** (Supplemental/Optional).
+* **Data Preparation:** Used `.model_dump()` to bridge the gap between Pydantic models and Python dictionaries for future Pandas integration.
+* **The Friction:** Realized that writing manual `if-else` checks to sanitize data is a "Java-style" habit that FastAPI can automate.
 
+---
 
-### 🛠️ The "Safety" Logic (Defaults & Optionals)
-I don't have to worry about the API crashing if a user misses a filter. I can bake the logic directly into the parameters:
-* **Optional Values:** Using `str | None = None` makes a parameter optional. If the user doesn't send it, the code just skips it.
-* **Smart Defaults:** Setting `limit: int = 10` ensures that even if the user is lazy, my logic still has a number to work with.
-* **Type Guard:** If I expect an `int` and get a `string`, FastAPI blocks the request before it even hits my main logic, so yea.
+## 📅 Day 3: Parameter Mastery (The "Guard" Shift)
+**Date:** Jan 8, 2026 | **Status:** Complete ✅
 
+**The "Aha!" moment.** I moved manual data-cleaning logic directly into the function parameters using `Annotated`, `Query`, and `Path`.
+
+### 🛡️ The Triple Guard System
+I replaced manual checks with **Declarative Guards**:
+1.  **Metadata:** `alias`, `title`, and `description` for auto-generated documentation.
+2.  **String Stencils:** `min_length` and `pattern` (Regex) to ensure data purity.
+3.  **Numeric Bounds:** `ge`, `le`, `gt`, and `lt` for strict integer and float safety.
 
 
-### 🛡️ Mixing Parameters
-The real "Main Logic" happens when you combine them. I can identify a user via **Path** and then filter their data via **Query**:
+
+### 💻 Master Boilerplate
 ```python
-@app.get("/users/{user_id}/items")
-async def get_items(user_id: int, limit: int = 10, category: str | None = None):
-    # Identifies WHO (Path) and WHAT/HOW MANY (Query)
-    return {"user": user_id, "limit": limit, "cat": category}
+from typing import Annotated
+from fastapi import FastAPI, Path, Query
+
+app = FastAPI()
+
+@app.get("/items/{item_id}")
+async def read_items(
+    # PATH GUARD: Mandatory positive integer
+    item_id: Annotated[int, Path(title="Item ID", ge=1, le=1000)],
+
+    # QUERY GUARD: Regex-validated search string
+    q: Annotated[str | None, Query(min_length=3, pattern="^[a-zA-Z\s]+$")] = None, 
+
+    # NUMERIC GUARD: Float strictly greater than 0
+    size: Annotated[float, Query(gt=0, lt=10.5)] = 5.5
+):
+    # Logic only executes if the guards pass. Data is 100% valid here.
+    return {"item_id": item_id, "active_filters": q, "page_size": size}
