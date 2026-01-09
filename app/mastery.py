@@ -2,36 +2,59 @@ from typing import Annotated
 from fastapi import FastAPI, Path, Query, Body
 from pydantic import BaseModel, Field
 
+# --- INITIALIZATION ---
 app = FastAPI()
 
-# --- 1. THE DATA BLUEPRINT (THE SCHEMA) ---
-class User(BaseModel):
-    # 'Field' replaces manual 'if len(name) < 3'
-    username: str = Field(..., min_length=3, description="The login name")
-    # 'Field' replaces manual 'if age < 18'
-    age: int = Field(..., ge=18, message="Must be an adult")
+# FAKE DATABASE: A simple list to store our validated objects for Day 5
+database = []
 
-# --- 2. THE MULTI-GUARD ENDPOINT ---
+# --- DAY 4: DATA MODELING (The Java 'DTO' replacement) ---
+# This class acts as a 'Self-Guarding' object.
+class UserProfile(BaseModel):
+    # Rule: Username must be 3+ chars. Field replaces manual 'if' checks.
+    username: str = Field(..., min_length=3, description="Username must be at least 3 characters")
+    # Rule: Must be 18 or older.
+    age: int = Field(..., ge=18, description="User must be an adult")
+
+# --- DAY 3 RECAP: PARAMETER GUARDS ---
+@app.get("/items/{item_id}")
+async def read_items(
+    # PATH GUARD: Structural/Mandatory ID between 1 and 1000
+    item_id: Annotated[int, Path(title="Item ID", ge=1, le=1000)],
+    # QUERY GUARD: Optional search string with Regex safety
+    q: Annotated[str | None, Query(min_length=3, pattern="^[a-zA-Z\s]+$")] = None
+):
+    return {"item_id": item_id, "search_query": q}
+
+# --- DAY 4 MASTERY: COMPLEX BODY GUARDS ---
 @app.put("/update-profile/{user_id}")
 async def update_user(
-    # GUARD 1: URL Path (Yesterday's logic)
-    user_id: Annotated[int, Path(title="The ID to update", ge=1)],
+    # URL Guard: user_id must be positive
+    user_id: Annotated[int, Path(ge=1)],
     
-    # GUARD 2: The Body Object (Today's logic)
-    # FastAPI sees 'User' class, so it looks for a JSON body
-    user_data: User,
+    # Body Guard: Validates the entire JSON object against UserProfile class
+    user_data: UserProfile,
     
-    # GUARD 3: The Singular Body Value (Level 3 logic)
-    # Forces 'importance' into the JSON instead of the URL
-    importance: Annotated[int, Body(gt=0)],
+    # Standalone Body Guard: A single value hidden in the JSON body
+    importance: Annotated[int, Body(gt=0, le=10)],
     
-    # GUARD 4: The Query (Yesterday's logic)
-    confirm: Annotated[bool, Query()] = False
+    # Query Guard: An optional URL flag (e.g., ?confirm=true)
+    confirm: bool = Query(False)
 ):
-    # 3. THE BUSINESS LOGIC (The 'Do-er')
-    return {
+    """
+    ENGINEERING LOG:
+    In Java, I'd print error messages manually. Here, if the code hits 
+    this line, I KNOW the data is 100% clean because FastAPI 
+    pre-validated it and would have sent a 422 error otherwise.
+    """
+    
+    validated_packet = {
         "user_id": user_id,
-        "new_data": user_data,
-        "importance": importance,
-        "confirmed": confirm
+        "profile": user_data,
+        "priority_level": importance,
+        "is_confirmed": confirm,
+        "status": "Ready for Database"
     }
+
+    # DAY 5 TEASER: We will soon use database.append(validated_packet)
+    return validated_packet

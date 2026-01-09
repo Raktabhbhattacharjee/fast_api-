@@ -37,25 +37,55 @@ I replaced manual checks with **Declarative Guards**:
 2.  **String Stencils:** `min_length` and `pattern` (Regex) to ensure data purity.
 3.  **Numeric Bounds:** `ge`, `le`, `gt`, and `lt` for strict integer and float safety.
 
+---
+
+## 📅 Day 4: Deep Modeling & Body Guards
+**Date:** Jan 9, 2026 | **Status:** Complete ✅
+
+Today I moved beyond URL parameters and mastered **Nested Data Modeling**. I replaced complex manual validation with self-guarding Pydantic classes.
 
 
-### 💻 Master Boilerplate
+
+### 🛡️ The Mastery Shift
+* **Self-Guarding DTOs:** Used `Field()` inside classes for internal validation. This replaces the need for manual `if` statements inside the function.
+* **Pre-Execution Rejection:** Confirmed that FastAPI kills requests with a `422` error (e.g., age < 18 or ID < 1) before the function body ever executes.
+* **Hybrid Requests:** Created an endpoint that simultaneously guards the URL Path, the Query string, and a Nested JSON Body.
+
+### 💻 Master Boilerplate (Day 4 Integrated)
 ```python
 from typing import Annotated
-from fastapi import FastAPI, Path, Query
+from fastapi import FastAPI, Path, Query, Body
+from pydantic import BaseModel, Field
 
 app = FastAPI()
 
-@app.get("/items/{item_id}")
-async def read_items(
-    # PATH GUARD: Mandatory positive integer
-    item_id: Annotated[int, Path(title="Item ID", ge=1, le=1000)],
+# MOCK DATABASE: Ready for Day 5 CRUD
+database = []
 
-    # QUERY GUARD: Regex-validated search string
-    q: Annotated[str | None, Query(min_length=3, pattern="^[a-zA-Z\s]+$")] = None, 
+# MODEL: Replaces Java-style manual validation logic
+class UserProfile(BaseModel):
+    username: str = Field(..., min_length=3, description="Must be 3+ chars")
+    age: int = Field(..., ge=18, description="Adults only")
 
-    # NUMERIC GUARD: Float strictly greater than 0
-    size: Annotated[float, Query(gt=0, lt=10.5)] = 5.5
+@app.put("/update-profile/{user_id}")
+async def update_user(
+    # PATH GUARD: URL must have positive integer
+    user_id: Annotated[int, Path(ge=1)],               
+    
+    # BODY MODEL GUARD: Validates JSON against UserProfile class
+    user_data: UserProfile,                            
+    
+    # SINGULAR BODY GUARD: Extra validated key in the JSON
+    importance: Annotated[int, Body(gt=0, le=10)],     
+    
+    # QUERY GUARD: Optional URL flag (?confirm=true)
+    confirm: bool = Query(False)                       
 ):
-    # Logic only executes if the guards pass. Data is 100% valid here.
-    return {"item_id": item_id, "active_filters": q, "page_size": size}
+    # Logic only executes if all Guards pass!
+    return {
+        "user_id": user_id,
+        "profile": user_data,
+        "priority": importance,
+        "is_confirmed": confirm,
+        "status": "Validated & Ready for DB"
+    }
