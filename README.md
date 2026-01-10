@@ -7,22 +7,17 @@ This repository documents my transition from **Java/C++** to **FastAPI**. My goa
 ## 📅 Day 1: The "No-Boilerplate" Foundation
 **Date:** Jan 6, 2026 | **Status:** Complete ✅
 
-Today was about setting up the environment and understanding how FastAPI handles "pre-flight" logic automatically.
-
 * **App Lifecycle:** `app = FastAPI()` is the central registry.
 * **Decorators:** Used as Higher-Order Functions to map network routes to Python logic.
-* **The Enum Shift:** Implemented `Enum` classes for strict validation. If an input is invalid, FastAPI blocks it with a `422 Unprocessable Entity` error before the function even runs.
+* **The Enum Shift:** Implemented `Enum` classes for strict validation.
 
 ---
 
 ## 📅 Day 2: Manual Logic & Model Dumping
 **Date:** Jan 7, 2026 | **Status:** Complete ✅
 
-Explored the communication layer between the URL and the server.
-
-* **Parameter Scope:** Identified the difference between **Path** (Structural/Mandatory) and **Query** (Supplemental/Optional).
-* **Data Preparation:** Used `.model_dump()` to bridge the gap between Pydantic models and Python dictionaries for future Pandas integration.
-* **The Friction:** Realized that writing manual `if-else` checks to sanitize data is a "Java-style" habit that FastAPI can automate.
+* **Parameter Scope:** Identified the difference between **Path** and **Query**.
+* **Data Preparation:** Used `.model_dump()` to bridge the gap between Pydantic and Dictionaries.
 
 ---
 
@@ -31,61 +26,63 @@ Explored the communication layer between the URL and the server.
 
 **The "Aha!" moment.** I moved manual data-cleaning logic directly into the function parameters using `Annotated`, `Query`, and `Path`.
 
-### 🛡️ The Triple Guard System
-I replaced manual checks with **Declarative Guards**:
-1.  **Metadata:** `alias`, `title`, and `description` for auto-generated documentation.
-2.  **String Stencils:** `min_length` and `pattern` (Regex) to ensure data purity.
-3.  **Numeric Bounds:** `ge`, `le`, `gt`, and `lt` for strict integer and float safety.
-
 ---
 
 ## 📅 Day 4: Deep Modeling & Body Guards
 **Date:** Jan 9, 2026 | **Status:** Complete ✅
 
-Today I moved beyond URL parameters and mastered **Nested Data Modeling**. I replaced complex manual validation with self-guarding Pydantic classes.
+* **Self-Guarding DTOs:** Used `Field()` inside classes for internal validation.
+* **Pre-Execution Rejection:** Confirmed that FastAPI kills requests with a `422` error before the function body executes.
 
+---
 
+## 📅 Day 5: The "Contract-First" Shift & State Management
+**Date:** Jan 10, 2026 | **Status:** Complete ✅
+
+Today marked a major milestone: building a functional **Stateful API** (Create, Read, Update) without following step-by-step tutorials.
 
 ### 🛡️ The Mastery Shift
-* **Self-Guarding DTOs:** Used `Field()` inside classes for internal validation. This replaces the need for manual `if` statements inside the function.
-* **Pre-Execution Rejection:** Confirmed that FastAPI kills requests with a `422` error (e.g., age < 18 or ID < 1) before the function body ever executes.
-* **Hybrid Requests:** Created an endpoint that simultaneously guards the URL Path, the Query string, and a Nested JSON Body.
+* **Living Documentation:** Discovered `model_config`. This populates the Swagger UI with **Example Payloads**, creating a visual contract for the consumer.
+* **Stateful Logic:** Implemented a mock database using Python lists. Learned to bridge the gap between Pydantic Objects and storage using `.model_dump()`.
+* **Manual Exception Handling:** Applied the "C++ Safety" mindset by manually raising `HTTPException(status_code=404)` for index-out-of-bounds errors.
+* **The Parser vs. The Guard:** Identified that a **422 Error** can be triggered by either a JSON syntax mistake (the parser) or a logic violation (Pydantic).
 
-### 💻 Master Boilerplate (Day 4 Integrated)
+### 💻 Master Boilerplate (Day 5 Integrated CRUD)
 ```python
 from typing import Annotated
-from fastapi import FastAPI, Path, Query, Body
+from fastapi import FastAPI, Path, Body, HTTPException
 from pydantic import BaseModel, Field
 
 app = FastAPI()
 
-# MOCK DATABASE: Ready for Day 5 CRUD
-database = []
+# MOCK DB: Persistence in RAM for the session
+database = [{"username": "rishi_dev", "age": 25}]
 
-# MODEL: Replaces Java-style manual validation logic
 class UserProfile(BaseModel):
-    username: str = Field(..., min_length=3, description="Must be 3+ chars")
-    age: int = Field(..., ge=18, description="Adults only")
+    username: str = Field(..., min_length=3, description="Username handle")
+    age: int = Field(..., ge=18, description="User must be 18+")
 
-@app.put("/update-profile/{user_id}")
-async def update_user(
-    # PATH GUARD: URL must have positive integer
-    user_id: Annotated[int, Path(ge=1)],               
-    
-    # BODY MODEL GUARD: Validates JSON against UserProfile class
-    user_data: UserProfile,                            
-    
-    # SINGULAR BODY GUARD: Extra validated key in the JSON
-    importance: Annotated[int, Body(gt=0, le=10)],     
-    
-    # QUERY GUARD: Optional URL flag (?confirm=true)
-    confirm: bool = Query(False)                       
-):
-    # Logic only executes if all Guards pass!
-    return {
-        "user_id": user_id,
-        "profile": user_data,
-        "priority": importance,
-        "is_confirmed": confirm,
-        "status": "Validated & Ready for DB"
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{"username": "fastapi_pro", "age": 30}]
+        }
     }
+
+@app.post("/users/", status_code=201)
+async def create_user(user: UserProfile):
+    user_dict = user.model_dump()
+    database.append(user_dict)
+    return {"id": len(database) - 1, "user": user_dict}
+
+@app.get("/users/{user_id}")
+async def get_user(user_id: Annotated[int, Path(ge=0)]):
+    if user_id >= len(database):
+        raise HTTPException(status_code=404, detail="User not found in memory")
+    return database[user_id]
+
+@app.put("/users/{user_id}")
+async def update_user(user_id: Annotated[int, Path(ge=0)], updated_user: UserProfile):
+    if user_id >= len(database):
+        raise HTTPException(status_code=404, detail="Cannot update - ID does not exist")
+    database[user_id] = updated_user.model_dump()
+    return {"message": "Update Successful", "data": database[user_id]}
