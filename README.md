@@ -4,85 +4,109 @@ This repository documents my transition from **Java/C++** to **FastAPI**. My goa
 
 ---
 
-## 📅 Day 1: The "No-Boilerplate" Foundation
-**Date:** Jan 6, 2026 | **Status:** Complete ✅
+## 📅 Progress Tracker
 
-* **App Lifecycle:** `app = FastAPI()` is the central registry.
-* **Decorators:** Used as Higher-Order Functions to map network routes to Python logic.
-* **The Enum Shift:** Implemented `Enum` classes for strict validation.
-
----
-
-## 📅 Day 2: Manual Logic & Model Dumping
-**Date:** Jan 7, 2026 | **Status:** Complete ✅
-
-* **Parameter Scope:** Identified the difference between **Path** and **Query**.
-* **Data Preparation:** Used `.model_dump()` to bridge the gap between Pydantic and Dictionaries.
+| Day | Focus | Status | Key Concept |
+| :--- | :--- | :--- | :--- |
+| **01** | The Foundation | ✅ | Decorators & Type Hinting |
+| **02** | Data Prep | ✅ | `.model_dump()` Serialization |
+| **03** | Parameter Guards | ✅ | `Annotated` for Path/Query security |
+| **04** | Deep Modeling | ✅ | `Field()` level validation |
+| **05/06** | **The CRUD Master** | ✅ | **Full State Management & Permanent IDs** |
 
 ---
 
-## 📅 Day 3: Parameter Mastery (The "Guard" Shift)
-**Date:** Jan 8, 2026 | **Status:** Complete ✅
+## 📅 Day 5 & 6: The "Production-Ready" Leap
+**Date:** Jan 14, 2026 | **Status:** Complete ✅
 
-**The "Aha!" moment.** I moved manual data-cleaning logic directly into the function parameters using `Annotated`, `Query`, and `Path`.
-
----
-
-## 📅 Day 4: Deep Modeling & Body Guards
-**Date:** Jan 9, 2026 | **Status:** Complete ✅
-
-* **Self-Guarding DTOs:** Used `Field()` inside classes for internal validation.
-* **Pre-Execution Rejection:** Confirmed that FastAPI kills requests with a `422` error before the function body executes.
-
----
-
-## 📅 Day 5: The "Contract-First" Shift & State Management
-**Date:** Jan 10, 2026 | **Status:** Complete ✅
-
-Today marked a major milestone: building a functional **Stateful API** (Create, Read, Update) without following step-by-step tutorials.
+I have successfully moved from basic validation to building a **Complete Stateful CRUD System**. I realized that for an API to be robust, I must handle state changes (Deletes/Updates) without breaking the data structure.
 
 ### 🛡️ The Mastery Shift
-* **Living Documentation:** Discovered `model_config`. This populates the Swagger UI with **Example Payloads**, creating a visual contract for the consumer.
-* **Stateful Logic:** Implemented a mock database using Python lists. Learned to bridge the gap between Pydantic Objects and storage using `.model_dump()`.
-* **Manual Exception Handling:** Applied the "C++ Safety" mindset by manually raising `HTTPException(status_code=404)` for index-out-of-bounds errors.
-* **The Parser vs. The Guard:** Identified that a **422 Error** can be triggered by either a JSON syntax mistake (the parser) or a logic violation (Pydantic).
+* **Permanent ID Strategy:** Moved from list indices to a Global ID counter. This prevents the "Index Shift" bug where deleting one user changes everyone else's ID.
+* **Contract-First Docs:** Implemented `model_config` with `examples`. This officially replaced Postman in my workflow as the Swagger UI now serves as a live test suite.
+* **Declarative Guards:** Mastered the use of `Annotated[int, Path(ge=0)]` to ensure the API never even processes negative or invalid IDs.
 
-### 💻 Master Boilerplate (Day 5 Integrated CRUD)
+
+
+### 💻 The Full "Master" Code (80+ Lines of Logic)
+
 ```python
 from typing import Annotated
-from fastapi import FastAPI, Path, Body, HTTPException
+from fastapi import FastAPI, Path, Body, HTTPException, status
 from pydantic import BaseModel, Field
 
 app = FastAPI()
 
-# MOCK DB: Persistence in RAM for the session
-database = [{"username": "rishi_dev", "age": 25}]
+# 🗄️ STATEFUL DATABASE (Using Dict for Permanent ID Mapping)
+database = {} 
+id_counter = 0
 
+# --- MODEL DEFINITION ---
 class UserProfile(BaseModel):
     username: str = Field(..., min_length=3, description="Username handle")
     age: int = Field(..., ge=18, description="User must be 18+")
 
+    # Self-Documenting Contract for Swagger UI
     model_config = {
         "json_schema_extra": {
-            "examples": [{"username": "fastapi_pro", "age": 30}]
+            "examples": [
+                {
+                    "username": "fastapi_pro",
+                    "age": 30
+                }
+            ]
         }
     }
 
-@app.post("/users/", status_code=201)
+# --- 1. CREATE (POST) ---
+@app.post("/users/", status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserProfile):
+    global id_counter
+    
+    # Bridge: Object -> Storage Format
     user_dict = user.model_dump()
-    database.append(user_dict)
-    return {"id": len(database) - 1, "user": user_dict}
+    
+    # Assign permanent ID and store
+    database[id_counter] = user_dict
+    current_id = id_counter
+    id_counter += 1
+    
+    return {"id": current_id, "user": user_dict}
 
+# --- 2. READ ALL (GET) ---
+@app.get("/users/")
+async def get_all_users():
+    return database
+
+# --- 3. READ ONE (GET) ---
 @app.get("/users/{user_id}")
 async def get_user(user_id: Annotated[int, Path(ge=0)]):
-    if user_id >= len(database):
-        raise HTTPException(status_code=404, detail="User not found in memory")
+    if user_id not in database:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"User with ID {user_id} not found in memory"
+        )
     return database[user_id]
 
+# --- 4. UPDATE (PUT) ---
 @app.put("/users/{user_id}")
-async def update_user(user_id: Annotated[int, Path(ge=0)], updated_user: UserProfile):
-    if user_id >= len(database):
+async def update_user(
+    user_id: Annotated[int, Path(ge=0)], 
+    updated_user: UserProfile
+):
+    if user_id not in database:
         raise HTTPException(status_code=404, detail="Cannot update - ID does not exist")
+    
+    # Overwrite existing record with new validated data
     database[user_id] = updated_user.model_dump()
     return {"message": "Update Successful", "data": database[user_id]}
+
+# --- 5. DELETE (DELETE) ---
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: Annotated[int, Path(ge=0)]):
+    if user_id not in database:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Remove from dictionary (Does not shift other IDs)
+    deleted_item = database.pop(user_id)
+    return {"status": "Deleted", "last_record": deleted_item}
